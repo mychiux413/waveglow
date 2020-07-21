@@ -32,7 +32,7 @@ from denoiser import Denoiser
 
 
 def main(mel_files, waveglow_path, sigma, output_dir, sampling_rate, is_fp16,
-         denoiser_strength):
+         denoiser_strength, config):
     mel_files = files_to_list(mel_files)
     waveglow = torch.load(waveglow_path)['model']
     waveglow = waveglow.remove_weightnorm(waveglow)
@@ -42,7 +42,13 @@ def main(mel_files, waveglow_path, sigma, output_dir, sampling_rate, is_fp16,
         waveglow, _ = amp.initialize(waveglow, [], opt_level="O3")
 
     if denoiser_strength > 0:
-        denoiser = Denoiser(waveglow).cuda()
+        data_config = {}
+        # Parse configs.  Globals nicer in this case
+        if config:
+            config = json.load(open(config))
+            data_config = config["data_config"]
+
+        denoiser = Denoiser(waveglow, **data_config).cuda()
 
     for i, file_path in enumerate(mel_files):
         file_name = os.path.splitext(os.path.basename(file_path))[0]
@@ -77,8 +83,11 @@ if __name__ == "__main__":
     parser.add_argument("--is_fp16", action="store_true")
     parser.add_argument("-d", "--denoiser_strength", default=0.0, type=float,
                         help='Removes model bias. Start with 0.1 and adjust')
+    parser.add_argument('-c', '--config', type=str,
+                        help='JSON file for configuration')
 
     args = parser.parse_args()
 
     main(args.filelist_path, args.waveglow_path, args.sigma, args.output_dir,
-         args.sampling_rate, args.is_fp16, args.denoiser_strength)
+         args.sampling_rate, args.is_fp16, args.denoiser_strength,
+         args.config)
